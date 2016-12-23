@@ -54,7 +54,7 @@ TraceLoader(function(trace) {
  timingMetrics.forEach(function(cat) {
      Output("<p>" + cat.n + "</p>")
      cat.m.forEach(function(metric) {
-        Output("<p>" + metric.m + " " + metric.t + " %" + 100 *(metric.t / duration) + "</p>")
+        Output("<p>" + metric.m + " t= " + metric.t + " %" + 100 *(metric.t / duration) + " t/c= " + metric.tpc + "</p>")
      })
    
  })

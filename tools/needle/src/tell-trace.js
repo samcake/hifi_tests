@@ -145,7 +145,7 @@ Metrics.prototype.getType = function () {
 
 Metrics.prototype.getTimingMetrics = function () {
   if (this.type == "D") {
-      return {m: this.name, t: this.sumValues}
+      return {m: this.name, t: this.sumValues, tpc: this.getAverage()}
   } else {
       return null
   }
