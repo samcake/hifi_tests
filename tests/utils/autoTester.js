@@ -1,13 +1,31 @@
+
+var testRepoRootPath = Script.resolvePath("../");
+
+var defaultSnapshotPathRoot = "";
+var defaultSnapshotPathRootSet = false;
+
+if (!defaultSnapshotPathRootSet) {
+    defaultSnapshotPathRoot = Snapshot.getSnapshotsLocation()
+    defaultSnapshotPathRootSet = true;
+}
+
+var makeLocalPathFromURL = function(otherPath) {  
+    // resolvePath(".") returns a string that looks like "file:/" + <current folder>
+    // We need the current folder
+    // var path = otherPath.path.substring(otherPath.path.indexOf(":") + 4);
+    return otherPath.substring(otherPath.indexOf(":") + 4);
+}
+
 var currentTestName = "";
 var currentSteps = [];
 var currentStepIndex = 0;
 
 var testCases = [];
-var currentlyExecutingTest = 0;
 
 TestCase = function (name, path, func) {
     this.name = name;
     this.path = path;
+    this.localPath = makeLocalPathFromURL(path);
     this.func = func;
 }
 
@@ -38,8 +56,7 @@ module.exports.setupTest = function () {
 
     // resolvePath(".") returns a string that looks like "file:/" + <current folder>
     // We need the current folder
-    var path = currentTestCase.path.substring(currentTestCase.path.indexOf(":") + 4);
-    Snapshot.setSnapshotsLocation(path);
+    Snapshot.setSnapshotsLocation(currentTestCase.localPath);
 
     var spectatorCameraConfig = Render.getConfig("SecondaryCamera");
     spectatorCameraConfig.enableSecondaryCameraRenderConfigs(true);
@@ -85,7 +102,7 @@ var runNextStep = function () {
 }
 
 var testOver = function() {
-    if (testMode == "manual") {
+    if (isManualStep()) {
         Controller.keyPressEvent.disconnect(onKeyPressEventNextStep);
         Window.displayAnnouncement("Test " + currentTestName + " have been completed");
     }
@@ -97,7 +114,7 @@ var testOver = function() {
     currentTestName = "";
     currentTestCase = null;
     
-    if (testMode == "manual") {
+    if (isManualStep()) {
         Script.stop();
     }
 }
@@ -150,15 +167,6 @@ module.exports.runTest = function (testType) {
     }
 }
 
-module.exports.runRecursive = function () {
-    print("Starting recursive tests");
-    // THIS NEEDS TO BE FIXED AS IT DOES NOT WAIT FOR TEST COMPLETION!!!
-    while (testCases.length > 0) {
-        currentTestCase = testCases.pop();
-        currentTestCase.func("auto");
-    }
-}
-
 // Add Steps to the test case
 var doAddStep = function (name, stepFunction, snapshot) {
     currentSteps.push({"index": currentSteps.length, "name": name, "func": stepFunction, "snap": snapshot })
@@ -175,7 +183,7 @@ module.exports.addStepSnapshot = function (name, stepFunction) {
 
 var testMode = "manual";
 
-module.exports.runManual = function () {
+var isManualStep = function () {
     return (testMode == "manual");
 }
 
@@ -187,19 +195,40 @@ module.exports.enableRecursive = function () {
     testMode = "recursive";
 }
 
-module.exports.perform = function (testName, testPath, testMain) {
-    currentTestCase = new TestCase(testName, testPath, testMain);
-    
-    // Manual and auto tests are run immediately, recursive tests are stored in a queue
-    if (testMode == "manual") {
-        print("Begin manual test:" + testName);
-        currentTestCase.func("manual");
-    } else if (testMode == "auto") {
-        print("Begin auto test:" + testName);
-        currentTestCase.func("auto");
+var doIsRecursive = function () {
+    return (testMode == "recursive");
+} 
+
+module.exports.isRecursive = function () {
+    return doIsRecursive();
+}
+
+var runOneTestCase = function (testCase) {
+    currentTestCase = testCase; 
+    if (isManualStep()) {     
+        print("Begin manual test:" + currentTestCase.name);        
+        currentTestCase.func("stepbystep");
     } else {
-        print("Not running yet - in recursive mode");
-        testCases.push(currentTestCase);
+        print("Begin auto test:" + currentTestCase.name);        
+        currentTestCase.func("auto");
     }
 }
 
+module.exports.perform = function (testName, testPath, testMain) { 
+    var testCase = new TestCase(testName, testPath, testMain);
+    if (!doIsRecursive()) {
+        runOneTestCase(testCase)
+    } else {
+        testCases.push(testCase)        
+    }
+}   
+
+
+module.exports.runRecursive = function () {
+    print("Starting recursive tests");
+    // THIS NEEDS TO BE FIXED AS IT DOES NOT WAIT FOR TEST COMPLETION!!!
+    while (testCases.length > 0) {
+        currentTestCase = testCases.pop();
+        runOneTestCase(currentTestCase);
+    }
+}
